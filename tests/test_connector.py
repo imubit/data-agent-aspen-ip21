@@ -1,0 +1,26 @@
+from data_agent_aspen_ip21.connector import AspenIp21Connector
+
+from conftest import TEST_CONN_STRING
+
+
+# Demo tags
+
+# IP_AnalogDef.AvailableMemoryVals (has history)
+# testtag
+
+
+def test_sanity():
+    conn = AspenIp21Connector(conn_string=TEST_CONN_STRING)
+    assert not conn.connected
+    conn.connect()
+    assert conn.connected
+
+    assert conn.TYPE == "aspen-ip21"
+
+    info = conn.connection_info()
+    # assert info["ServerName"] == TEST_SERVER_NAME
+    # assert info["Version"] == TEST_SERVER_VERSION
+    assert info["Description"] == ""
+
+    conn.disconnect()
+    assert not conn.connected
