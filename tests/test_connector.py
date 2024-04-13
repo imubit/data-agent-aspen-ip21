@@ -1,7 +1,6 @@
-from data_agent_aspen_ip21.connector import AspenIp21Connector
-
 from conftest import TEST_CONN_STRING
 
+from data_agent_aspen_ip21.connector import AspenIp21Connector
 
 # Demo tags
 
@@ -24,3 +23,6 @@ def test_sanity():
 
     conn.disconnect()
     assert not conn.connected
+
+def test_list_tags(target_conn):
+    pass

@@ -1,13 +1,14 @@
 import logging
-import pyodbc
-import pandas as pd
 from typing import Union
-from pypika import Table, MSSQLQuery
+
+import pandas as pd
+import pyodbc
 from data_agent.abstract_connector import (
     AbstractConnector,
     SupportedOperation,
     active_connection,
 )
+from pypika import MSSQLQuery, Table
 
 log = logging.getLogger(f"ia_plugin.{__name__}")
 
@@ -34,10 +35,9 @@ class AspenIp21Connector(AbstractConnector):
         ("changer", {"Type": "str", "Name": "Modified By"}),
     ]
 
-    DEFAULT_ODBC_DRIVER_NAME = 'AspenTech SQLplus'
+    DEFAULT_ODBC_DRIVER_NAME = "AspenTech SQLplus"
     DEFAULT_SERVER_PORT = 10014
     DEFAULT_TIMEOUT = 128
-
 
     @staticmethod
     def list_connection_fields():
@@ -50,6 +50,13 @@ class AspenIp21Connector(AbstractConnector):
                 ],
                 "default_value": "",
                 "optional": False,
+            },
+
+            "default_group": {
+                "name": "Default Group",
+                "type": "str",
+                "default_value": "",
+                "optional": True,
             }
         }
 
@@ -74,14 +81,24 @@ class AspenIp21Connector(AbstractConnector):
     def target_info(host=None):
         return {"Name": "absolute-fake", "Endpoints": []}
 
-
-    def __init__(self, conn_name="ip21_client", server_host="aspenone", server_port=None, server_timeout=None, conn_string=None, **kwargs):
+    def __init__(
+        self,
+        conn_name="ip21_client",
+        server_host="aspenone",
+        server_port=None,
+        server_timeout=None,
+        conn_string=None,
+        **kwargs,
+    ):
         super(AspenIp21Connector, self).__init__(conn_name)
         self._server_host = server_host
         self._server_port = server_port or self.DEFAULT_SERVER_PORT
         self._server_timeout = server_timeout or self.DEFAULT_TIMEOUT
 
-        self._conn_string = conn_string or f"DRIVER={self.DEFAULT_ODBC_DRIVER_NAME};HOST={self._server_host};PORT={self._server_port};TIMEOUT={self._server_timeout}"
+        self._conn_string = (
+            conn_string
+            or f"DRIVER={self.DEFAULT_ODBC_DRIVER_NAME};HOST={self._server_host};PORT={self._server_port};TIMEOUT={self._server_timeout}"
+        )
 
         self._conn = None
 
@@ -91,6 +108,10 @@ class AspenIp21Connector(AbstractConnector):
 
     def connect(self):
         self._conn = pyodbc.connect(self._conn_string)
+
+    @property
+    def odbc_conn(self):
+        return self._conn
 
     @active_connection
     def disconnect(self):
@@ -102,8 +123,8 @@ class AspenIp21Connector(AbstractConnector):
         return {
             "OneLiner": f"[{self.TYPE}] 'ODBC://",
             "ServerName": self._server_host,
-            "Description": '',
-            "Version": '',
+            "Description": "",
+            "Version": "",
             # "Host": self._server_host,
             # "Port": self._server_port,
         }
@@ -117,8 +138,9 @@ class AspenIp21Connector(AbstractConnector):
         max_results: int = 0,
     ):
 
-        tbl = Table('pg_stat_activity')
+        grp, name = filter.split('.', 1)
 
+        tbl = Table("pg_stat_activity")
 
     @active_connection
     def read_tag_attributes(self, tags: list, attributes: list = None):
@@ -127,7 +149,6 @@ class AspenIp21Connector(AbstractConnector):
     @active_connection
     def read_tag_values(self, tags: list):
         raise RuntimeError("unsupported")
-
 
     @active_connection
     def read_tag_values_period(
@@ -140,30 +161,39 @@ class AspenIp21Connector(AbstractConnector):
         result_format="dataframe",
         progress_callback=None,
     ):
-
         if time_frequency:
+            tbl = Table("HISTORY")
 
-            tbl = Table('HISTORY')
+            q = (
+                MSSQLQuery()
+                .from_(tbl)
+                .select(tbl.name, tbl)
+                .where(tbl.application_name == app_name)
+            )
 
-            q = MSSQLQuery().from_(tbl).select(
-                tbl.name, tbl ).where(tbl.application_name == app_name)
-
-            sql = sql = "select TS,VALUE from HISTORY "\
-            "where NAME='%s'"\
-            "and PERIOD = 60*10"\
-            "and REQUEST = 2"\
-            "and REQUEST=2 and TS between TIMESTAMP'%s' and TIMESTAMP'%s'" % (tag, start, end)
+            sql = sql = (
+                "select TS,VALUE from HISTORY "
+                "where NAME='%s'"
+                "and PERIOD = 60*10"
+                "and REQUEST = 2"
+                "and REQUEST=2 and TS between TIMESTAMP'%s' and TIMESTAMP'%s'"
+                % (tag, start, end)
+            )
 
         else:
-            tbl = Table('IP_AIDef')
+            tbl = Table("IP_AIDef")
 
-            q = MSSQLQuery().from_(tbl).select(
-                tbl.name, tbl.IP_TREND_TIME, tbl.IP_TREND_VALUE).where(tbl.name == app_name)
+            q = (
+                MSSQLQuery()
+                .from_(tbl)
+                .select(tbl.name, tbl.IP_TREND_TIME, tbl.IP_TREND_VALUE)
+                .where(tbl.name == app_name)
+            )
 
         with self.sql_execute(str(q)) as curs:
             curs.fetchall()
 
-        data = pd.read_sql(sql,self._conn)
+        data = pd.read_sql(sql, self._conn)
 
     @active_connection
     def write_tag_values(self, tags: dict, wait_for_result: bool = True, **kwargs):
