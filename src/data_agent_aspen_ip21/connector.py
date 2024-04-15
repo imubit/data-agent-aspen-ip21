@@ -12,7 +12,6 @@ from pypika import (MSSQLQuery, Table, Order)
 
 log = logging.getLogger(f"ia_plugin.{__name__}")
 
-
 MAP_IP21ATTRIBUTE_2_STANDARD = {
     "NAME": "Name",
     "IP_TAG_TYPE": "Type",
@@ -20,6 +19,9 @@ MAP_IP21ATTRIBUTE_2_STANDARD = {
     "IP_ENG_UNITS": "EngUnits",
     "IP_DCS_NAME": "Path",
 }
+
+MAP_STANDARD_ATTR_TO_IP21 = {v: k for k, v in MAP_IP21ATTRIBUTE_2_STANDARD.items()}
+
 
 class AspenIp21Connector(AbstractConnector):
     TYPE = "aspen-ip21"
@@ -30,17 +32,11 @@ class AspenIp21Connector(AbstractConnector):
         SupportedOperation.READ_TAG_META,
     ]
     DEFAULT_ATTRIBUTES = [
-        ("tag", {"Type": "str", "Name": "Tag Name"}),
-        ("engunits", {"Type": "str", "Name": "Units"}),
-        ("typicalvalue", {"Type": "str", "Name": "Typical Value"}),
-        ("descriptor", {"Type": "str", "Name": "Description"}),
-        ("pointsource", {"Type": "str", "Name": "Point Source"}),
-        # ('pointtype', {
-        #     'Type': str,
-        #     'Name': 'Type'
-        # }),
-        ("compressing", {"Type": "int", "Name": "Compression"}),
-        ("changer", {"Type": "str", "Name": "Modified By"}),
+        ("Name", {"Type": "str", "Name": "Tag Name"}),
+        ("EngUnits", {"Type": "str", "Name": "Eng Units"}),
+        ("Type", {"Type": "str", "Name": "Type"}),
+        ("Description", {"Type": "str", "Name": "Description"}),
+        ("Path", {"Type": "str", "Name": "Path"}),
     ]
 
     DEFAULT_ODBC_DRIVER_NAME = "AspenTech SQLplus"
@@ -50,16 +46,41 @@ class AspenIp21Connector(AbstractConnector):
     @staticmethod
     def list_connection_fields():
         return {
-            "server_name": {
-                "name": "Server Name",
-                "type": "list",
-                "values": [
-                    i["Name"] for i in AspenIp21Connector.list_registered_targets()
-                ],
+            "server_host": {
+                "name": "Server Host",
+                "type": "str",
                 "default_value": "",
                 "optional": False,
             },
-
+            # "server_username": {
+            #     "name": "Server Username",
+            #     "type": "str",
+            #     "default_value": "",
+            #     "optional": False,
+            # },
+            # "server_password": {
+            #     "name": "Server Password",
+            #     "type": "str",
+            #     "default_value": "",
+            #     "optional": False,
+            # },
+            "odbc_driver": {
+                "name": "ODBC Driver",
+                "type": "list",
+                # "values": [
+                #     'AspenTech ODBC driver for Production Record Manager',
+                #     "ODBC Driver 18 for SQL Server"
+                # ],
+                "values": pyodbc.drivers(),
+                "default_value": 'AspenTech ODBC driver for Production Record Manager',
+                "optional": False,
+            },
+            "connection_string": {
+                "name": "Connection String",
+                "type": "str",
+                "default_value": "",
+                "optional": True,
+            },
             "default_group": {
                 "name": "Default Group",
                 "type": "str",
@@ -90,13 +111,13 @@ class AspenIp21Connector(AbstractConnector):
         return {"Name": "absolute-fake", "Endpoints": []}
 
     def __init__(
-        self,
-        conn_name="ip21_client",
-        server_host="aspenone",
-        server_port=None,
-        server_timeout=None,
-        conn_string=None,
-        **kwargs,
+            self,
+            conn_name="ip21_client",
+            server_host="aspenone",
+            server_port=None,
+            server_timeout=None,
+            connection_string=None,
+            **kwargs,
     ):
         super(AspenIp21Connector, self).__init__(conn_name)
         self._server_host = server_host
@@ -106,8 +127,8 @@ class AspenIp21Connector(AbstractConnector):
         self._default_group = kwargs.get('default_group')
 
         self._conn_string = (
-            conn_string
-            or f"DRIVER={self.DEFAULT_ODBC_DRIVER_NAME};HOST={self._server_host};PORT={self._server_port};TIMEOUT={self._server_timeout}"
+                connection_string
+                or f"DRIVER={self.DEFAULT_ODBC_DRIVER_NAME};HOST={self._server_host};PORT={self._server_port};TIMEOUT={self._server_timeout}"
         )
 
         self._conn = None
@@ -139,14 +160,24 @@ class AspenIp21Connector(AbstractConnector):
             # "Port": self._server_port,
         }
 
+    def _standard_to_native_attr_list(self, attrs):
+        return [MAP_STANDARD_ATTR_TO_IP21[a] if a in MAP_STANDARD_ATTR_TO_IP21.keys() else a for a in attrs]
+
     @active_connection
     def list_tags(
-        self,
-        filter: Union[str, list] = "",
-        include_attributes: Union[bool, list] = False,
-        recursive: bool = False,
-        max_results: int = 0,
+            self,
+            filter: Union[str, list] = "",
+            include_attributes: Union[bool, list] = False,
+            recursive: bool = False,
+            max_results: int = 0,
     ):
+
+        attr_list_provided = isinstance(include_attributes, list) and len(include_attributes) > 0
+
+        if attr_list_provided:
+            attr_to_retrieve = self._standard_to_native_attr_list(include_attributes)
+            if 'NAME' not in attr_to_retrieve:
+                attr_to_retrieve.append('NAME')
 
         fltr = filter.split('.', 1)
 
@@ -156,29 +187,53 @@ class AspenIp21Connector(AbstractConnector):
         tbl = Table(table_name)
 
         q = MSSQLQuery.from_(tbl).orderby(
-                tbl.NAME, order=Order.asc).where(tbl.NAME.like(f'{tag_filter}%'))
+            tbl.NAME, order=Order.asc).where(tbl.NAME.like(f'{tag_filter}%'))
 
         if not include_attributes:
             q = q.select(tbl.NAME)
-        elif isinstance(include_attributes, list):
+        elif attr_list_provided:
 
-            for attr in include_attributes:
+            for attr in attr_to_retrieve:
                 q = q.select(attr)
         else:
-            print('here')
             q = q.select('*')
 
         if max_results > 0:
             q = q.limit(max_results)
 
         curs = self._conn.cursor()
+        print(str(q))
         curs.execute(str(q))
 
         columns = [column[0] for column in curs.description]
-        res = {row.NAME : dict(zip(columns, row), **{'HasChildren': False}) for row in curs.fetchall()}
+        result = {row.NAME: dict(zip(columns, row), **{'HasChildren': False}) for row in curs.fetchall()}
 
-        return res
+        if not include_attributes:
+            return result
 
+        elif attr_list_provided:
+
+            for tag in result:
+
+                # Add standard attributes
+                for a in include_attributes:
+                    if a in MAP_STANDARD_ATTR_TO_IP21.keys():
+                        result[tag][a] = result[tag][MAP_STANDARD_ATTR_TO_IP21[a]]
+
+                # Remove non-asked native attributes
+                result[tag] = {a: result[tag][a] for a in result[tag].keys()  if a in include_attributes}
+
+            return result
+
+        else:
+
+            # Return native and standard attributes
+            for tag in result:
+                for a in MAP_STANDARD_ATTR_TO_IP21.keys():
+                    result[tag][a] = result[tag][MAP_STANDARD_ATTR_TO_IP21[a]] if MAP_STANDARD_ATTR_TO_IP21[a] in \
+                                                                                  result[tag] else None
+
+        return result
 
     @active_connection
     def read_tag_attributes(self, tags: list, attributes: list = None):
@@ -190,14 +245,14 @@ class AspenIp21Connector(AbstractConnector):
 
     @active_connection
     def read_tag_values_period(
-        self,
-        tags: list,
-        first_timestamp=None,
-        last_timestamp=None,
-        time_frequency=None,
-        max_results=None,
-        result_format="dataframe",
-        progress_callback=None,
+            self,
+            tags: list,
+            first_timestamp=None,
+            last_timestamp=None,
+            time_frequency=None,
+            max_results=None,
+            result_format="dataframe",
+            progress_callback=None,
     ):
         if time_frequency:
             tbl = Table("HISTORY")
@@ -210,12 +265,12 @@ class AspenIp21Connector(AbstractConnector):
             )
 
             sql = (
-                "select TS,VALUE from HISTORY "
-                "where NAME='%s'"
-                "and PERIOD = 60*10"
-                "and REQUEST = 2"
-                "and REQUEST=2 and TS between TIMESTAMP'%s' and TIMESTAMP'%s'"
-                % (tag, start, end)
+                    "select TS,VALUE from HISTORY "
+                    "where NAME='%s'"
+                    "and PERIOD = 60*10"
+                    "and REQUEST = 2"
+                    "and REQUEST=2 and TS between TIMESTAMP'%s' and TIMESTAMP'%s'"
+                    % (tag, start, end)
             )
 
         else:
@@ -223,7 +278,6 @@ class AspenIp21Connector(AbstractConnector):
             fqn_tags = [t if '.' in t else f'{self._default_group}.{t}' for t in tags]
 
             # tags_by_group = {t.split('.', 1)[0]:[]  for t in fqn_tags}
-
 
             tbl = Table("IP_AIDef")
 

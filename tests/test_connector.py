@@ -1,6 +1,8 @@
+import datetime
 from conftest import TEST_CONN_STRING
 
 from data_agent_aspen_ip21.connector import AspenIp21Connector
+
 
 # Demo tags
 
@@ -24,14 +26,15 @@ def test_sanity():
     conn.disconnect()
     assert not conn.connected
 
-def test_list_tags(target_conn):
 
+def test_list_tags(target_conn):
     tags = target_conn.list_tags()
 
-    assert tags == {'fc001.pv': {'NAME': 'fc001.pv', 'HasChildren': False}, 'tc001.pv': {'NAME': 'tc001.pv', 'HasChildren': False}}
+    assert tags == {'fc001.pv': {'NAME': 'fc001.pv', 'HasChildren': False},
+                    'tc001.pv': {'NAME': 'tc001.pv', 'HasChildren': False}}
 
-    tags = target_conn.list_tags(include_attributes=True)
+    tags = target_conn.list_tags(include_attributes=['IP_DESCRIPTION', 'Description', 'EngUnits'])
 
-    print(tags)
-
-
+    assert tags == {'fc001.pv': {'IP_DESCRIPTION': 'Flow Controller', 'Description': 'Flow Controller', 'EngUnits': ''},
+                    'tc001.pv': {'IP_DESCRIPTION': 'Temp Controller', 'Description': 'Temp Controller',
+                                 'EngUnits': 'DEG'}}

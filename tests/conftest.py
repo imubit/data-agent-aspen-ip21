@@ -15,9 +15,7 @@ TEST_SERVER_DEFAULT_GROUP = 'IP_AIDef'
 
 TEST_CONN_STRING = f"DRIVER={TEST_SERVER_ODBC_DRIVER};SERVER={TEST_SERVER_HOST};DATABASE={TEST_SERVER_DATABASE};PORT={TEST_SERVER_PORT};UID={TEST_SERVER_USERNAME};PWD={TEST_SERVER_PASSWORD};ENCRYPT=NO"
 
-
 def _purge_db(conn):
-
     sql = """
 DECLARE @sql NVARCHAR(2000)
 
@@ -43,8 +41,8 @@ END
     curs = conn.cursor()
     curs.execute(sql)
 
-def _generate_demo_tables(conn):
 
+def _generate_demo_tables(conn):
     table_name = TEST_SERVER_DEFAULT_GROUP
 
     sql = f"""
@@ -69,7 +67,9 @@ def _generate_demo_tables(conn):
     df["IP_#_OF_TREND_VALUES"] = 100
 
     for index, row in df.iterrows():
-        curs.execute(f"INSERT INTO {table_name} (NAME,IP_TREND_TIME,IP_TREND_VALUE) values(?,?,?)", row.NAME, index, row.IP_TREND_VALUE)
+        curs.execute(
+            f"INSERT INTO {table_name} (NAME,IP_TREND_TIME,IP_TREND_VALUE,IP_DESCRIPTION,IP_ENG_UNITS) values(?,?,?,?,?)",
+            row.NAME, index, row.IP_TREND_VALUE, row.IP_DESCRIPTION, row.IP_ENG_UNITS)
 
     df = create_random_df(['IP_TREND_VALUE'], rows=100, index_name='IP_TREND_TIME')
     df['NAME'] = 'fc001.pv'
@@ -78,12 +78,14 @@ def _generate_demo_tables(conn):
     df["IP_#_OF_TREND_VALUES"] = 100
 
     for index, row in df.iterrows():
-        curs.execute(f"INSERT INTO {table_name} (NAME,IP_TREND_TIME,IP_TREND_VALUE) values(?,?,?)", row.NAME, index, row.IP_TREND_VALUE)
+        curs.execute(
+            f"INSERT INTO {table_name} (NAME,IP_TREND_TIME,IP_TREND_VALUE,IP_DESCRIPTION,IP_ENG_UNITS) values(?,?,?,?,?)",
+            row.NAME, index, row.IP_TREND_VALUE, row.IP_DESCRIPTION, row.IP_ENG_UNITS)
 
 
 @pytest.fixture
 def target_conn():
-    conn = AspenIp21Connector(conn_string=TEST_CONN_STRING, default_group=TEST_SERVER_DEFAULT_GROUP)
+    conn = AspenIp21Connector(connection_string=TEST_CONN_STRING, default_group=TEST_SERVER_DEFAULT_GROUP)
     conn.connect()
 
     _purge_db(conn.odbc_conn)
@@ -102,7 +104,6 @@ def create_random_df(columns='a',
                      freq='S',
                      checkerboard_nans=False,
                      order='asc'):
-
     if index is None:
         index = pd.date_range(initial_date, freq=freq, periods=rows)
         if order == 'desc':
