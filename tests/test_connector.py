@@ -25,4 +25,13 @@ def test_sanity():
     assert not conn.connected
 
 def test_list_tags(target_conn):
-    pass
+
+    tags = target_conn.list_tags()
+
+    assert tags == {'fc001.pv': {'NAME': 'fc001.pv', 'HasChildren': False}, 'tc001.pv': {'NAME': 'tc001.pv', 'HasChildren': False}}
+
+    tags = target_conn.list_tags(include_attributes=True)
+
+    print(tags)
+
+

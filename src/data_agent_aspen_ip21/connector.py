@@ -8,10 +8,18 @@ from data_agent.abstract_connector import (
     SupportedOperation,
     active_connection,
 )
-from pypika import MSSQLQuery, Table
+from pypika import (MSSQLQuery, Table, Order)
 
 log = logging.getLogger(f"ia_plugin.{__name__}")
 
+
+MAP_IP21ATTRIBUTE_2_STANDARD = {
+    "NAME": "Name",
+    "IP_TAG_TYPE": "Type",
+    "IP_DESCRIPTION": "Description",
+    "IP_ENG_UNITS": "EngUnits",
+    "IP_DCS_NAME": "Path",
+}
 
 class AspenIp21Connector(AbstractConnector):
     TYPE = "aspen-ip21"
@@ -95,6 +103,8 @@ class AspenIp21Connector(AbstractConnector):
         self._server_port = server_port or self.DEFAULT_SERVER_PORT
         self._server_timeout = server_timeout or self.DEFAULT_TIMEOUT
 
+        self._default_group = kwargs.get('default_group')
+
         self._conn_string = (
             conn_string
             or f"DRIVER={self.DEFAULT_ODBC_DRIVER_NAME};HOST={self._server_host};PORT={self._server_port};TIMEOUT={self._server_timeout}"
@@ -138,9 +148,37 @@ class AspenIp21Connector(AbstractConnector):
         max_results: int = 0,
     ):
 
-        grp, name = filter.split('.', 1)
+        fltr = filter.split('.', 1)
 
-        tbl = Table("pg_stat_activity")
+        table_name = self._default_group if len(fltr) == 1 else fltr[0]
+        tag_filter = filter if len(fltr) == 1 else fltr[1]
+
+        tbl = Table(table_name)
+
+        q = MSSQLQuery.from_(tbl).orderby(
+                tbl.NAME, order=Order.asc).where(tbl.NAME.like(f'{tag_filter}%'))
+
+        if not include_attributes:
+            q = q.select(tbl.NAME)
+        elif isinstance(include_attributes, list):
+
+            for attr in include_attributes:
+                q = q.select(attr)
+        else:
+            print('here')
+            q = q.select('*')
+
+        if max_results > 0:
+            q = q.limit(max_results)
+
+        curs = self._conn.cursor()
+        curs.execute(str(q))
+
+        columns = [column[0] for column in curs.description]
+        res = {row.NAME : dict(zip(columns, row), **{'HasChildren': False}) for row in curs.fetchall()}
+
+        return res
+
 
     @active_connection
     def read_tag_attributes(self, tags: list, attributes: list = None):
@@ -171,7 +209,7 @@ class AspenIp21Connector(AbstractConnector):
                 .where(tbl.application_name == app_name)
             )
 
-            sql = sql = (
+            sql = (
                 "select TS,VALUE from HISTORY "
                 "where NAME='%s'"
                 "and PERIOD = 60*10"
@@ -181,6 +219,12 @@ class AspenIp21Connector(AbstractConnector):
             )
 
         else:
+
+            fqn_tags = [t if '.' in t else f'{self._default_group}.{t}' for t in tags]
+
+            # tags_by_group = {t.split('.', 1)[0]:[]  for t in fqn_tags}
+
+
             tbl = Table("IP_AIDef")
 
             q = (
@@ -190,8 +234,9 @@ class AspenIp21Connector(AbstractConnector):
                 .where(tbl.name == app_name)
             )
 
-        with self.sql_execute(str(q)) as curs:
-            curs.fetchall()
+        curs = self._conn.cursor()
+        # print(str(q))
+        curs.execute(str(q))
 
         data = pd.read_sql(sql, self._conn)
 
