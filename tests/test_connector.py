@@ -35,6 +35,16 @@ def test_list_tags(target_conn):
 
     tags = target_conn.list_tags(include_attributes=['IP_DESCRIPTION', 'Description', 'EngUnits'])
 
-    assert tags == {'fc001.pv': {'IP_DESCRIPTION': 'Flow Controller', 'Description': 'Flow Controller', 'EngUnits': ''},
-                    'tc001.pv': {'IP_DESCRIPTION': 'Temp Controller', 'Description': 'Temp Controller',
-                                 'EngUnits': 'DEG'}}
+    assert tags == {
+        'fc001.pv': {'IP_DESCRIPTION': 'Flow Controller', 'HasChildren': False, 'Description': 'Flow Controller',
+                     'EngUnits': ''},
+        'tc001.pv': {'IP_DESCRIPTION': 'Temp Controller', 'HasChildren': False, 'Description': 'Temp Controller',
+                     'EngUnits': 'DEG'}}
+
+    tags = target_conn.list_tags(max_results=3)
+    print(tags)
+
+def test_read_tag_values_period(target_conn):
+    df = target_conn.read_tag_values_period(['fc001.pv', 'tc001.pv'])
+
+    print(df)

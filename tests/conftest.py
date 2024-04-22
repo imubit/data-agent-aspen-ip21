@@ -40,6 +40,7 @@ END
 
     curs = conn.cursor()
     curs.execute(sql)
+    curs.commit()
 
 
 def _generate_demo_tables(conn):

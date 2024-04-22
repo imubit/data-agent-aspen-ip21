@@ -43,6 +43,8 @@ class AspenIp21Connector(AbstractConnector):
     DEFAULT_SERVER_PORT = 10014
     DEFAULT_TIMEOUT = 128
 
+    GROUP_TAG_DELIMITER = ':'
+
     @staticmethod
     def list_connection_fields():
         return {
@@ -128,17 +130,21 @@ class AspenIp21Connector(AbstractConnector):
 
         self._conn_string = (
                 connection_string
-                or f"DRIVER={self.DEFAULT_ODBC_DRIVER_NAME};HOST={self._server_host};PORT={self._server_port};TIMEOUT={self._server_timeout}"
+                or f"DRIVER={self.DEFAULT_ODBC_DRIVER_NAME};HOST={self._server_host};PORT={self._server_port};TIMEOUT={self._server_timeout};MAX_ROWS=10"
         )
 
         self._conn = None
+
+    @property
+    def _sql_server_mode(self):
+        return 'sql server' in self._conn_string.lower()
 
     @property
     def connected(self):
         return self._conn is not None
 
     def connect(self):
-        self._conn = pyodbc.connect(self._conn_string)
+        self._conn = pyodbc.connect(self._conn_string, autocommit=False)
 
     @property
     def odbc_conn(self):
@@ -179,7 +185,7 @@ class AspenIp21Connector(AbstractConnector):
             if 'NAME' not in attr_to_retrieve:
                 attr_to_retrieve.append('NAME')
 
-        fltr = filter.split('.', 1)
+        fltr = filter.split(self.GROUP_TAG_DELIMITER, 1)
 
         table_name = self._default_group if len(fltr) == 1 else fltr[0]
         tag_filter = filter if len(fltr) == 1 else fltr[1]
@@ -197,13 +203,30 @@ class AspenIp21Connector(AbstractConnector):
                 q = q.select(attr)
         else:
             q = q.select('*')
-
-        if max_results > 0:
-            q = q.limit(max_results)
-
+        self._conn.autocommit = False
         curs = self._conn.cursor()
-        print(str(q))
-        curs.execute(str(q))
+
+        # max_results = 10
+        if max_results > 0:
+
+            if self._sql_server_mode:
+                q = q.limit(max_results)
+                curs.execute(str(q))
+            else:
+                # curs.execute(f"SET MAX_ROWS {max_results};")
+                sql = f"SET MAX_ROWS {max_results}; {str(q)};"
+                # sql = f"DECLARE @CursorVar CURSOR; {sql};"
+                # sql = f'exec(" SET MAX_ROWS {max_results}; {sql};  ")'
+                # print(sql)
+                # curs.execute('exec("@string1=?")', (sql))
+                curs.execute(sql)
+                curs.nextset()
+        else:
+            curs.execute(str(q))
+
+        # for row in curs.fetchall():
+        #     print(row.NAME)
+
 
         columns = [column[0] for column in curs.description]
         result = {row.NAME: dict(zip(columns, row), **{'HasChildren': False}) for row in curs.fetchall()}
@@ -221,7 +244,7 @@ class AspenIp21Connector(AbstractConnector):
                         result[tag][a] = result[tag][MAP_STANDARD_ATTR_TO_IP21[a]]
 
                 # Remove non-asked native attributes
-                result[tag] = {a: result[tag][a] for a in result[tag].keys()  if a in include_attributes}
+                result[tag] = {a: result[tag][a] for a in result[tag].keys() if a in include_attributes or a == 'HasChildren'}
 
             return result
 
@@ -242,6 +265,20 @@ class AspenIp21Connector(AbstractConnector):
     @active_connection
     def read_tag_values(self, tags: list):
         raise RuntimeError("unsupported")
+
+    def _tag_list_to_group_map(self, tags):
+        fqn_tags = [t if '.' in t else f'{self._default_group}.{t}' for t in tags]
+
+        group_map = {}
+        for t in fqn_tags:
+            lst = t.split(self.GROUP_TAG_DELIMITER, 1)
+
+            table_name = self._default_group if len(lst) == 1 else lst[0]
+            tag = t if len(lst) == 1 else lst[1]
+
+            group_map.setdefault(table_name, []).append(tag)
+
+        return group_map
 
     @active_connection
     def read_tag_values_period(
@@ -275,24 +312,33 @@ class AspenIp21Connector(AbstractConnector):
 
         else:
 
-            fqn_tags = [t if '.' in t else f'{self._default_group}.{t}' for t in tags]
+            group_map = self._tag_list_to_group_map(tags)
 
-            # tags_by_group = {t.split('.', 1)[0]:[]  for t in fqn_tags}
+            for grp in group_map:
 
-            tbl = Table("IP_AIDef")
+                tbl = Table(grp)
 
-            q = (
-                MSSQLQuery()
-                .from_(tbl)
-                .select(tbl.name, tbl.IP_TREND_TIME, tbl.IP_TREND_VALUE)
-                .where(tbl.name == app_name)
-            )
+                q = MSSQLQuery().from_(tbl).select(tbl.IP_TREND_TIME, tbl.IP_TREND_VALUE)
 
-        curs = self._conn.cursor()
-        # print(str(q))
-        curs.execute(str(q))
+                if max_results:
+                    q = q.limit(max_results)
 
-        data = pd.read_sql(sql, self._conn)
+                if first_timestamp:
+                    q = q.where(tbl.IP_TREND_TIME >= first_timestamp)
+
+                if last_timestamp:
+                    q = q.where(tbl.IP_TREND_TIME <= last_timestamp)
+
+                for tag in group_map[grp]:
+                    q = q.where(tbl.NAME.like(f'{tag}%'))
+
+        # curs = self._conn.cursor()
+        # # print(str(q))
+        # curs.execute(str(q))
+
+        data = pd.read_sql(str(q), self._conn)
+
+        return data
 
     @active_connection
     def write_tag_values(self, tags: dict, wait_for_result: bool = True, **kwargs):
