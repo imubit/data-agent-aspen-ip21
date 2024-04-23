@@ -321,10 +321,13 @@ class AspenIp21Connector(AbstractConnector):
         first_timestamp=None,
         last_timestamp=None,
         time_frequency=None,
-        max_results=None,
+        max_results: int = 0,
         result_format="dataframe",
         progress_callback=None,
     ):
+
+        assert result_format == "dataframe"
+
         if time_frequency:
             tbl = Table("HISTORY")
 
@@ -337,7 +340,6 @@ class AspenIp21Connector(AbstractConnector):
                 q = q.where(tbl.TS <= last_timestamp)
 
             # We ignore the groups
-
             tag_names = [
                 (
                     t.split[self.GROUP_TAG_DELIMITER, 1][1]
@@ -348,7 +350,6 @@ class AspenIp21Connector(AbstractConnector):
             ]
 
             q = q.where(reduce(or_, [tbl.NAME.like(f"{tag}%") for tag in tag_names]))
-
             q = q.where(tbl.REQUEST == 2)
 
             # sql = (
@@ -383,26 +384,21 @@ class AspenIp21Connector(AbstractConnector):
                     reduce(or_, [tbl.NAME.like(f"{tag}%") for tag in group_map[grp]])
                 )
 
-                # if max_results > 0:
-                #
-                #     if self._sql_server_mode:
-                #         q = q.top(max_results)
-                #         # print(str(q))
-                #         curs.execute(str(q))
-                #     else:
-                #         # curs.execute(f"SET MAX_ROWS {max_results};")
-                #         sql = f"SET MAX_ROWS {max_results}; {str(q)};"
-                #         # sql = f"DECLARE @CursorVar CURSOR; {sql};"
-                #         # sql = f'exec(" SET MAX_ROWS {max_results}; {sql};  ")'
-                #         # print(sql)
-                #         # curs.execute('exec("@string1=?")', (sql))
-                #         curs.execute(sql)
-                #         curs.nextset()
-                # else:
-                #     curs.execute(str(q))
+                if max_results > 0 and self._sql_server_mode:
+                    q = q.top(max_results)
 
         curs = self._conn.cursor()
-        curs.execute(str(q))
+
+        sql = str(q)
+
+        # IP21 does not support standard SQL TOP operator
+        if max_results > 0 and not self._sql_server_mode:
+            sql = f"SET MAX_ROWS {max_results}; {str(q)};"
+
+        curs.execute(sql)
+
+        if max_results > 0 and not self._sql_server_mode:
+            curs.nextset()
 
         data = curs.fetchall()
 
@@ -415,10 +411,6 @@ class AspenIp21Connector(AbstractConnector):
         df = df.pivot(index="Timestamp", columns="Name", values="Value")
 
         return df
-
-        # data = pd.read_sql(str(q), self._conn)
-
-        # return data
 
     @active_connection
     def write_tag_values(self, tags: dict, wait_for_result: bool = True, **kwargs):

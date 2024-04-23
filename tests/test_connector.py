@@ -54,7 +54,16 @@ def test_list_tags(target_conn):
 
 
 def test_read_tag_values_period(target_conn):
+
+    df = target_conn.read_tag_values_period(["tc001.pv"])
+    assert len(df) == 100
+    assert list(df.columns) == ["tc001.pv"]
+
     df = target_conn.read_tag_values_period(["fc001.pv", "tc001.pv"])
 
     assert len(df) == 100
     assert list(df.columns) == ["fc001.pv", "tc001.pv"]
+
+    df = target_conn.read_tag_values_period(["fc001.pv"], max_results=10)
+    assert len(df) == 10
+    assert list(df.columns) == ["fc001.pv"]
