@@ -1,13 +1,6 @@
-import datetime
 from conftest import TEST_CONN_STRING
 
 from data_agent_aspen_ip21.connector import AspenIp21Connector
-
-
-# Demo tags
-
-# IP_AnalogDef.AvailableMemoryVals (has history)
-# testtag
 
 
 def test_sanity():
@@ -30,21 +23,38 @@ def test_sanity():
 def test_list_tags(target_conn):
     tags = target_conn.list_tags()
 
-    assert tags == {'fc001.pv': {'NAME': 'fc001.pv', 'HasChildren': False},
-                    'tc001.pv': {'NAME': 'tc001.pv', 'HasChildren': False}}
+    assert tags == {
+        "fc001.pv": {"NAME": "fc001.pv", "HasChildren": False},
+        "tc001.pv": {"NAME": "tc001.pv", "HasChildren": False},
+    }
 
-    tags = target_conn.list_tags(include_attributes=['IP_DESCRIPTION', 'Description', 'EngUnits'])
+    tags = target_conn.list_tags(
+        include_attributes=["IP_DESCRIPTION", "Description", "EngUnits"]
+    )
 
     assert tags == {
-        'fc001.pv': {'IP_DESCRIPTION': 'Flow Controller', 'HasChildren': False, 'Description': 'Flow Controller',
-                     'EngUnits': ''},
-        'tc001.pv': {'IP_DESCRIPTION': 'Temp Controller', 'HasChildren': False, 'Description': 'Temp Controller',
-                     'EngUnits': 'DEG'}}
+        "fc001.pv": {
+            "IP_DESCRIPTION": "Flow Controller",
+            "HasChildren": False,
+            "Description": "Flow Controller",
+            "EngUnits": "",
+        },
+        "tc001.pv": {
+            "IP_DESCRIPTION": "Temp Controller",
+            "HasChildren": False,
+            "Description": "Temp Controller",
+            "EngUnits": "DEG",
+        },
+    }
 
-    tags = target_conn.list_tags(max_results=3)
+    tags = target_conn.list_tags(
+        max_results=3, include_attributes=["IP_DESCRIPTION", "Description", "EngUnits"]
+    )
     print(tags)
 
-def test_read_tag_values_period(target_conn):
-    df = target_conn.read_tag_values_period(['fc001.pv', 'tc001.pv'])
 
-    print(df)
+def test_read_tag_values_period(target_conn):
+    df = target_conn.read_tag_values_period(["fc001.pv", "tc001.pv"])
+
+    assert len(df) == 100
+    assert list(df.columns) == ["fc001.pv", "tc001.pv"]
