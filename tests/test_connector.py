@@ -1,3 +1,4 @@
+import pandas as pd
 from conftest import TEST_CONN_STRING
 
 from data_agent_aspen_ip21.connector import AspenIp21Connector
@@ -67,3 +68,13 @@ def test_read_tag_values_period(target_conn):
     df = target_conn.read_tag_values_period(["fc001.pv"], max_results=10)
     assert len(df) == 10
     assert list(df.columns) == ["fc001.pv"]
+
+    df = target_conn.read_tag_values_period(
+        ["fc001.pv"], max_results=10, first_timestamp="20160101 00:01"
+    )
+    assert df.index[0] == pd.Timestamp("20160101 00:01")
+
+    df = target_conn.read_tag_values_period(
+        ["fc001.pv"], last_timestamp="20160101 00:01"
+    )
+    assert df.index[-1] == pd.Timestamp("20160101 00:01")

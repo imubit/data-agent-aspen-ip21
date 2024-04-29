@@ -223,7 +223,6 @@ class AspenIp21Connector(AbstractConnector):
         self._conn.autocommit = False
         curs = self._conn.cursor()
 
-        # max_results = 10
         if max_results > 0:
 
             if self._sql_server_mode:
