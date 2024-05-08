@@ -3,7 +3,6 @@ from functools import reduce
 from operator import or_
 from typing import Union
 
-import pandas
 import pandas as pd
 import pyodbc
 from data_agent.abstract_connector import (
@@ -49,6 +48,10 @@ class AspenIp21Connector(AbstractConnector):
     DEFAULT_TIMEOUT = 128
 
     GROUP_TAG_DELIMITER = ":"
+
+    @staticmethod
+    def plugin_supported():
+        return True
 
     @staticmethod
     def list_connection_fields():
@@ -114,8 +117,8 @@ class AspenIp21Connector(AbstractConnector):
         return ret
 
     @staticmethod
-    def target_info(host=None):
-        return {"Name": "absolute-fake", "Endpoints": []}
+    def target_info(target_ref=None):
+        return {"Name": "", "Endpoints": []}
 
     def __init__(
         self,
