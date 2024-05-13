@@ -230,8 +230,8 @@ class AspenIp21Connector(AbstractConnector):
 
             if self._sql_server_mode:
                 q = q.top(max_results)
-                # print(str(q))
-                curs.execute(str(q))
+                # curs.execute(str(q))
+                sql = f"SELECT 1; {str(q)};"
             else:
                 # curs.execute(f"SET MAX_ROWS {max_results};")
                 sql = f"SET MAX_ROWS {max_results}; {str(q)};"
@@ -239,8 +239,9 @@ class AspenIp21Connector(AbstractConnector):
                 # sql = f'exec(" SET MAX_ROWS {max_results}; {sql};  ")'
                 # print(sql)
                 # curs.execute('exec("@string1=?")', (sql))
-                curs.execute(sql)
-                curs.nextset()
+
+            curs.execute(sql)
+            curs.nextset()
         else:
             curs.execute(str(q))
 
