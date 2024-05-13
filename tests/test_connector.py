@@ -5,7 +5,7 @@ from data_agent_aspen_ip21.connector import AspenIp21Connector
 
 
 def test_sanity():
-    conn = AspenIp21Connector(conn_string=TEST_CONN_STRING)
+    conn = AspenIp21Connector(connection_string=TEST_CONN_STRING)
     assert not conn.connected
     conn.connect()
     assert conn.connected
