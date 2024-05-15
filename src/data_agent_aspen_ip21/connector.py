@@ -26,6 +26,8 @@ MAP_IP21ATTRIBUTE_2_STANDARD = {
 
 MAP_STANDARD_ATTR_TO_IP21 = {v: k for k, v in MAP_IP21ATTRIBUTE_2_STANDARD.items()}
 
+MAP_TIME_FREQUENCY_TO_IP21 = {"raw data": None}
+
 
 class AspenIp21Connector(AbstractConnector):
     TYPE = "aspen-ip21"
@@ -178,7 +180,8 @@ class AspenIp21Connector(AbstractConnector):
             # "Port": self._server_port,
         }
 
-    def _standard_to_native_attr_list(self, attrs):
+    @staticmethod
+    def _standard_to_native_attr_list(attrs):
         return [
             MAP_STANDARD_ATTR_TO_IP21[a] if a in MAP_STANDARD_ATTR_TO_IP21.keys() else a
             for a in attrs
@@ -226,32 +229,33 @@ class AspenIp21Connector(AbstractConnector):
         self._conn.autocommit = False
         curs = self._conn.cursor()
 
-        if max_results > 0:
-
-            if self._sql_server_mode:
-                q = q.top(max_results)
-                # curs.execute(str(q))
-                sql = f"SELECT 1; {str(q)};"
-            else:
-                # curs.execute(f"SET MAX_ROWS {max_results};")
-                sql = f"SET MAX_ROWS {max_results}; {str(q)};"
-                # sql = f"DECLARE @CursorVar CURSOR; {sql};"
-                # sql = f'exec(" SET MAX_ROWS {max_results}; {sql};  ")'
-                # print(sql)
-                # curs.execute('exec("@string1=?")', (sql))
-
-            curs.execute(sql)
-            curs.nextset()
-        else:
-            curs.execute(str(q))
-
-        # for row in curs.fetchall():
-        #     print(row.NAME)
+        # if max_results > 0:
+        #
+        #     if self._sql_server_mode:
+        #         # q = q.top(max_results)
+        #         # curs.execute(str(q))
+        #         # sql = f"SELECT 1; {str(q)};"
+        #         sql = str(q)
+        #     else:
+        #         # curs.execute(f"SET MAX_ROWS {max_results};")
+        #         # sql = f"SET MAX_ROWS {max_results}; {str(q)};"
+        #         sql = str(q)
+        #         # sql = f"DECLARE @CursorVar CURSOR; {sql};"
+        #         # sql = f'exec(" SET MAX_ROWS {max_results}; {sql};  ")'
+        #         # print(sql)
+        #         # curs.execute('exec("@string1=?")', (sql))
+        #
+        #     curs.execute(sql)
+        #     # curs.nextset()
+        # else:
+        curs.execute(str(q))
 
         columns = [column[0] for column in curs.description]
         result = {
             row.NAME: dict(zip(columns, row), **{"HasChildren": False})
-            for row in curs.fetchall()
+            for row in (
+                curs.fetchmany(max_results) if max_results > 0 else curs.fetchall()
+            )
         }
 
         if not include_attributes:
@@ -290,7 +294,73 @@ class AspenIp21Connector(AbstractConnector):
 
     @active_connection
     def read_tag_attributes(self, tags: list, attributes: list = None):
-        pass
+        attr_list_provided = isinstance(attributes, list) and len(attributes) > 0
+
+        group_map = self._tag_list_to_group_map(tags)
+
+        res = {}
+        for grp in group_map:
+
+            tbl = Table(grp)
+
+            q = (
+                MSSQLQuery.from_(tbl)
+                .orderby(tbl.NAME, order=Order.asc)
+                .where(
+                    reduce(or_, [tbl.NAME.like(f"{tag}%") for tag in group_map[grp]])
+                )
+            )
+
+            if attr_list_provided:
+                for attr in self._standard_to_native_attr_list(attributes):
+                    q = q.select(attr)
+                if "NAME" not in attributes:
+                    q = q.select("NAME")
+            else:
+                q = q.select("*")
+            self._conn.autocommit = False
+            curs = self._conn.cursor()
+
+            curs.execute(str(q))
+
+            columns = [column[0] for column in curs.description]
+            grp_result = {
+                row.NAME: dict(zip(columns, row), **{"HasChildren": False})
+                for row in curs.fetchall()
+            }
+
+            if attr_list_provided:
+
+                for tag in grp_result:
+
+                    # Add standard attributes
+                    for a in attributes:
+                        if a in MAP_STANDARD_ATTR_TO_IP21.keys():
+                            grp_result[tag][a] = grp_result[tag][
+                                MAP_STANDARD_ATTR_TO_IP21[a]
+                            ]
+
+                    # Remove non-asked native attributes
+                    grp_result[tag] = {
+                        a: grp_result[tag][a]
+                        for a in grp_result[tag].keys()
+                        if a in attributes or a == "HasChildren"
+                    }
+
+            else:
+
+                # Return native and standard attributes
+                for tag in grp_result:
+                    for a in MAP_STANDARD_ATTR_TO_IP21.keys():
+                        grp_result[tag][a] = (
+                            grp_result[tag][MAP_STANDARD_ATTR_TO_IP21[a]]
+                            if MAP_STANDARD_ATTR_TO_IP21[a] in grp_result[tag]
+                            else None
+                        )
+
+            res.update(grp_result)
+
+        return res
 
     @active_connection
     def read_tag_values(self, tags: list):
@@ -331,7 +401,29 @@ class AspenIp21Connector(AbstractConnector):
 
         assert result_format == "dataframe"
 
-        if time_frequency:
+        if isinstance(first_timestamp, str):
+            first_timestamp = pd.to_datetime(first_timestamp)
+        if isinstance(last_timestamp, str):
+            last_timestamp = pd.to_datetime(last_timestamp)
+
+        first_timestamp = (
+            first_timestamp.strftime("%d-%b-%y %H:%M:%S")
+            if first_timestamp
+            else first_timestamp
+        )
+        last_timestamp = (
+            last_timestamp.strftime("%d-%b-%y %H:%M:%S")
+            if last_timestamp
+            else last_timestamp
+        )
+        freq = (
+            MAP_TIME_FREQUENCY_TO_IP21[time_frequency.lower()]
+            if time_frequency and time_frequency.lower() in MAP_TIME_FREQUENCY_TO_IP21
+            else time_frequency
+        )
+
+        if freq:
+
             tbl = Table("HISTORY")
 
             q = MSSQLQuery().from_(tbl).select(tbl.NAME, tbl.TS, tbl.VALUE)
@@ -412,6 +504,7 @@ class AspenIp21Connector(AbstractConnector):
             ],
         )
         df = df.pivot(index="Timestamp", columns="Name", values="Value")
+        df.index = pd.to_datetime(df.index)
 
         return df
 

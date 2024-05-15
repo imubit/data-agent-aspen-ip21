@@ -78,3 +78,23 @@ def test_read_tag_values_period(target_conn):
         ["fc001.pv"], last_timestamp="20160101 00:01"
     )
     assert df.index[-1] == pd.Timestamp("20160101 00:01")
+
+
+def test_read_tag_attributes(target_conn):
+    # Test PI attribute
+    res = target_conn.read_tag_attributes(["fc001.pv", "tc001.pv"])
+
+    assert res["fc001.pv"]["Name"] == "fc001.pv"
+    assert len(res["fc001.pv"]) == 15
+    assert res["tc001.pv"]["Name"] == "tc001.pv"
+    assert len(res["tc001.pv"]) == 15
+
+    res = target_conn.read_tag_attributes(
+        ["fc001.pv", "tc001.pv"], attributes=["Description"]
+    )
+    assert res["fc001.pv"]["Description"] == "Flow Controller"
+    assert len(res["fc001.pv"]) == 2
+
+    res = target_conn.read_tag_attributes(["fc001.pv", "tc001.pv"], attributes=["NAME"])
+    assert res["fc001.pv"]["NAME"] == "fc001.pv"
+    assert len(res["fc001.pv"]) == 2
