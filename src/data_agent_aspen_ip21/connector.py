@@ -508,6 +508,7 @@ class AspenIp21Connector(AbstractConnector):
         )
         df = df.pivot(index="Timestamp", columns="Name", values="Value")
         df.index = pd.to_datetime(df.index)
+        df.index.name = "timestamp"
 
         return df
 
