@@ -1,4 +1,6 @@
 import logging
+import os
+import winreg
 from functools import reduce
 from operator import or_
 from typing import Union
@@ -103,20 +105,24 @@ class AspenIp21Connector(AbstractConnector):
 
     @staticmethod
     def list_registered_targets():
-        # sources = tagreader.list_sources("aspenone")
-        ret = []
 
-        # for srv in sources:
-        #     ret.append(
-        #         {
-        #             "uid": f"{AspenIp21Connector.TYPE}::{srv.Name}:{srv.UniqueID}",
-        #             "Name": srv.Name,
-        #             "Host": srv.ConnectionInfo.Host,
-        #             "Port": srv.ConnectionInfo.Port,
-        #         }
-        #     )
+        reg_adsa = winreg.OpenKey(
+            winreg.HKEY_CURRENT_USER,
+            r"Software\AspenTech\ADSA\Caches\AspenADSA\\" + os.getlogin(),
+        )
+        num_sources, _, _ = winreg.QueryInfoKey(reg_adsa)
 
-        return ret
+        targets = [winreg.EnumKey(reg_adsa, i) for i in range(0, num_sources)]
+
+        return [
+            {
+                "uid": f"{AspenIp21Connector.TYPE}::{srv.Name}:{srv.UniqueID}",
+                "Name": srv.Name,
+                "Host": srv.ConnectionInfo.Host,
+                "Port": srv.ConnectionInfo.Port,
+            }
+            for srv in targets
+        ]
 
     @staticmethod
     def target_info(target_ref=None):
