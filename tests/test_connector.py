@@ -60,7 +60,12 @@ def test_read_tag_values_period(target_conn):
     assert len(df) == 100
     assert list(df.columns) == ["tc001.pv"]
 
-    df = target_conn.read_tag_values_period(["fc001.pv", "tc001.pv"])
+    def progress_callback(msg):
+        print(msg)
+
+    df = target_conn.read_tag_values_period(
+        ["fc001.pv", "tc001.pv"], progress_callback=progress_callback
+    )
 
     assert len(df) == 100
     assert list(df.columns) == ["fc001.pv", "tc001.pv"]

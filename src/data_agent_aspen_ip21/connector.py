@@ -461,6 +461,9 @@ class AspenIp21Connector(AbstractConnector):
 
             for grp in group_map:
 
+                if progress_callback:
+                    progress_callback(f"{grp} group")
+
                 tbl = Table(grp)
 
                 q = (
