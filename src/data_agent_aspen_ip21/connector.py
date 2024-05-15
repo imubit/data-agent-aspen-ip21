@@ -226,6 +226,10 @@ class AspenIp21Connector(AbstractConnector):
                 q = q.select(attr)
         else:
             q = q.select("*")
+
+        if self._sql_server_mode:
+            q = q.distinct()
+
         self._conn.autocommit = False
         curs = self._conn.cursor()
 
@@ -251,11 +255,11 @@ class AspenIp21Connector(AbstractConnector):
         curs.execute(str(q))
 
         columns = [column[0] for column in curs.description]
+
+        rows = curs.fetchmany(max_results) if max_results > 0 else curs.fetchall()
+
         result = {
-            row.NAME: dict(zip(columns, row), **{"HasChildren": False})
-            for row in (
-                curs.fetchmany(max_results) if max_results > 0 else curs.fetchall()
-            )
+            row.NAME: dict(zip(columns, row), **{"HasChildren": False}) for row in rows
         }
 
         if not include_attributes:
