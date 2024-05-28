@@ -59,7 +59,7 @@ jobs:
         - "3.9"  # oldest Python supported by PSF
         - "3.11"  # newest Python that is stable
         platform:
-        - windows-latest
+        - ubuntu-latest
     runs-on: ${{ matrix.platform }}
 
     services:
