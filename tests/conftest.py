@@ -127,7 +127,7 @@ def create_random_df(
     initial_date="20160101",
     index=None,
     index_name="timestamp",
-    freq="S",
+    freq="s",
     checkerboard_nans=False,
     order="asc",
 ):
