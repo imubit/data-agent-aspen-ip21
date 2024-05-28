@@ -82,6 +82,8 @@ jobs:
         with: {name: python-distribution-files, path: dist/}
       - name: Install Microsoft ODBC
         run: sudo ACCEPT_EULA=Y apt-get install msodbcsql18 -y
+        env:
+          PORT: ${{ job.services.mssql.ports[1433] }}
       - name: Run tests
         run: >-
           pipx run --python '${{ steps.setup-python.outputs.python-path }}'
