@@ -1,6 +1,7 @@
 import os
-import pandas as pd
+
 import numpy as np
+import pandas as pd
 import pytest
 
 from data_agent_aspen_ip21.connector import AspenIp21Connector
@@ -11,9 +12,18 @@ TEST_SERVER_ODBC_DRIVER = "ODBC Driver 18 for SQL Server"
 TEST_SERVER_DATABASE = "master"
 TEST_SERVER_USERNAME = "sa"
 TEST_SERVER_PASSWORD = "Contraseña12345678"
-TEST_SERVER_DEFAULT_GROUP = 'IP_AIDef'
+TEST_SERVER_DEFAULT_GROUP = "IP_AIDef"
 
-TEST_CONN_STRING = f"DRIVER={TEST_SERVER_ODBC_DRIVER};SERVER={TEST_SERVER_HOST};DATABASE={TEST_SERVER_DATABASE};PORT={TEST_SERVER_PORT};UID={TEST_SERVER_USERNAME};PWD={TEST_SERVER_PASSWORD};ENCRYPT=NO"
+TEST_CONN_STRING = (
+    f"DRIVER={TEST_SERVER_ODBC_DRIVER};"
+    f"SERVER={TEST_SERVER_HOST};"
+    f"DATABASE={TEST_SERVER_DATABASE};"
+    f"PORT={TEST_SERVER_PORT};"
+    f"UID={TEST_SERVER_USERNAME};"
+    f"PWD={TEST_SERVER_PASSWORD};"
+    f"ENCRYPT=NO"
+)
+
 
 def _purge_db(conn):
     sql = """
@@ -32,11 +42,11 @@ WHILE(EXISTS(SELECT * from INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME != '__Migr
 BEGIN
     SELECT TOP 1 @sql=('DROP TABLE ' + TABLE_SCHEMA + '.[' + TABLE_NAME + ']')
     FROM INFORMATION_SCHEMA.TABLES
-    WHERE TABLE_NAME != '__MigrationHistory' AND TABLE_NAME != 'database_firewall_rules' 
+    WHERE TABLE_NAME != '__MigrationHistory' AND TABLE_NAME != 'database_firewall_rules'
     EXEC(@sql)
     PRINT @sql
-END    
-    """
+END
+    """  # noqa: E501
 
     curs = conn.cursor()
     curs.execute(sql)
@@ -53,40 +63,54 @@ def _generate_demo_tables(conn):
            "IP_TAG_TYPE" varchar(255),
            "IP_ENG_UNITS" varchar(255),
            "IP_#_OF_TREND_VALUES" int,
-           "IP_TREND_TIME" datetime, 
-           "IP_TREND_VALUE" real        
+           "IP_TREND_TIME" datetime,
+           "IP_TREND_VALUE" real
         );
-    
+
     """
     curs = conn.cursor()
     curs.execute(sql)
 
-    df = create_random_df(['IP_TREND_VALUE'], rows=100, index_name='IP_TREND_TIME')
-    df['NAME'] = 'tc001.pv'
-    df["IP_DESCRIPTION"] = 'Temp Controller'
-    df["IP_ENG_UNITS"] = 'DEG'
+    df = create_random_df(["IP_TREND_VALUE"], rows=100, index_name="IP_TREND_TIME")
+    df["NAME"] = "tc001.pv"
+    df["IP_DESCRIPTION"] = "Temp Controller"
+    df["IP_ENG_UNITS"] = "DEG"
     df["IP_#_OF_TREND_VALUES"] = 100
 
     for index, row in df.iterrows():
         curs.execute(
-            f"INSERT INTO {table_name} (NAME,IP_TREND_TIME,IP_TREND_VALUE,IP_DESCRIPTION,IP_ENG_UNITS) values(?,?,?,?,?)",
-            row.NAME, index, row.IP_TREND_VALUE, row.IP_DESCRIPTION, row.IP_ENG_UNITS)
+            f"INSERT INTO {table_name} "
+            f"(NAME,IP_TREND_TIME,IP_TREND_VALUE,IP_DESCRIPTION,IP_ENG_UNITS) values(?,?,?,?,?)",
+            row.NAME,
+            index,
+            row.IP_TREND_VALUE,
+            row.IP_DESCRIPTION,
+            row.IP_ENG_UNITS,
+        )
 
-    df = create_random_df(['IP_TREND_VALUE'], rows=100, index_name='IP_TREND_TIME')
-    df['NAME'] = 'fc001.pv'
-    df["IP_DESCRIPTION"] = 'Flow Controller'
-    df["IP_ENG_UNITS"] = ''
+    df = create_random_df(["IP_TREND_VALUE"], rows=100, index_name="IP_TREND_TIME")
+    df["NAME"] = "fc001.pv"
+    df["IP_DESCRIPTION"] = "Flow Controller"
+    df["IP_ENG_UNITS"] = ""
     df["IP_#_OF_TREND_VALUES"] = 100
 
     for index, row in df.iterrows():
         curs.execute(
-            f"INSERT INTO {table_name} (NAME,IP_TREND_TIME,IP_TREND_VALUE,IP_DESCRIPTION,IP_ENG_UNITS) values(?,?,?,?,?)",
-            row.NAME, index, row.IP_TREND_VALUE, row.IP_DESCRIPTION, row.IP_ENG_UNITS)
+            f"INSERT INTO {table_name} "
+            f"(NAME,IP_TREND_TIME,IP_TREND_VALUE,IP_DESCRIPTION,IP_ENG_UNITS) values(?,?,?,?,?)",
+            row.NAME,
+            index,
+            row.IP_TREND_VALUE,
+            row.IP_DESCRIPTION,
+            row.IP_ENG_UNITS,
+        )
 
 
 @pytest.fixture
 def target_conn():
-    conn = AspenIp21Connector(connection_string=TEST_CONN_STRING, default_group=TEST_SERVER_DEFAULT_GROUP)
+    conn = AspenIp21Connector(
+        connection_string=TEST_CONN_STRING, default_group=TEST_SERVER_DEFAULT_GROUP
+    )
     conn.connect()
 
     _purge_db(conn.odbc_conn)
@@ -96,18 +120,20 @@ def target_conn():
     conn.disconnect()
 
 
-def create_random_df(columns='a',
-                     rows=10,
-                     val_type=np.float64,
-                     initial_date='20160101',
-                     index=None,
-                     index_name='timestamp',
-                     freq='S',
-                     checkerboard_nans=False,
-                     order='asc'):
+def create_random_df(
+    columns="a",
+    rows=10,
+    val_type=np.float64,
+    initial_date="20160101",
+    index=None,
+    index_name="timestamp",
+    freq="S",
+    checkerboard_nans=False,
+    order="asc",
+):
     if index is None:
         index = pd.date_range(initial_date, freq=freq, periods=rows)
-        if order == 'desc':
+        if order == "desc":
             index = index[::-1]
         index.freq = None
     else:
@@ -117,14 +143,13 @@ def create_random_df(columns='a',
 
     columns = pd.Index(data=columns)
     if val_type in [np.int64, np.int32, np.uint64, np.uint32]:
-        mtrx = np.random.randint(-100, 100,
-                                 (rows, len(columns))).astype(val_type)
+        mtrx = np.random.randint(-100, 100, (rows, len(columns))).astype(val_type)
     else:
         mtrx = np.random.randn(rows, len(columns)).astype(val_type)
     df = pd.DataFrame(mtrx, index=index, columns=columns)
     df.index.name = index_name
     if checkerboard_nans:
-        coords = np.ogrid[0:df.shape[0], 0:df.shape[1]]
+        coords = np.ogrid[0 : df.shape[0], 0 : df.shape[1]]
         checkerboard = (coords[0] + coords[1]) % 2 == 0
         df = df.where(checkerboard)
     return df
