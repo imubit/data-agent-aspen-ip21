@@ -14,7 +14,7 @@ from data_agent.abstract_connector import (
 )
 from pypika import MSSQLQuery, Order, Table
 
-log = logging.getLogger(f"ia_plugin.{__name__}")
+log = logging.getLogger(f"da_plugin.{__name__}")
 
 MAP_IP21ATTRIBUTE_2_STANDARD = {
     "NAME": "Name",

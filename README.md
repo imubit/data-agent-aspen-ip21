@@ -7,4 +7,4 @@
 
 > Data Agent plugin for AspenTech InfoPlus.21
 
-The plugin allows Data Extractor do access data on IP21 system using ODBC connection.
+The plugin allows Data Extractor do access data on IP21 systems using ODBC connection.
