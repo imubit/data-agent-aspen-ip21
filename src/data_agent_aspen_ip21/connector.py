@@ -43,7 +43,7 @@ class AspenIp21Connector(AbstractConnector):
         ("EngUnits", {"Type": "str", "Name": "Eng Units"}),
         ("Type", {"Type": "str", "Name": "Type"}),
         ("Description", {"Type": "str", "Name": "Description"}),
-        ("Path", {"Type": "str", "Name": "Path"}),
+        # ("Path", {"Type": "str", "Name": "Path"}),
     ]
 
     DEFAULT_ODBC_DRIVER_NAME = "AspenTech SQLplus"
