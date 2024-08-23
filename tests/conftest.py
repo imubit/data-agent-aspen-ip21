@@ -26,26 +26,27 @@ TEST_CONN_STRING = (
 
 
 def _purge_db(conn):
+
     sql = """
-DECLARE @sql NVARCHAR(2000)
+DECLARE @Sql NVARCHAR(500) DECLARE @Cursor CURSOR;
 
-WHILE(EXISTS(SELECT 1 from INFORMATION_SCHEMA.TABLE_CONSTRAINTS WHERE CONSTRAINT_TYPE='FOREIGN KEY'))
+SET @Cursor = CURSOR FAST_FORWARD FOR
+SELECT DISTINCT sql = 'ALTER TABLE [' + tc2.TABLE_SCHEMA + '].[' +  tc2.TABLE_NAME + '] DROP [' + rc1.CONSTRAINT_NAME + '];'
+FROM INFORMATION_SCHEMA.REFERENTIAL_CONSTRAINTS rc1
+LEFT JOIN INFORMATION_SCHEMA.TABLE_CONSTRAINTS tc2 ON tc2.CONSTRAINT_NAME =rc1.CONSTRAINT_NAME
+
+OPEN @Cursor FETCH NEXT FROM @Cursor INTO @Sql
+
+WHILE (@@FETCH_STATUS = 0)
 BEGIN
-    SELECT TOP 1 @sql=('ALTER TABLE ' + TABLE_SCHEMA + '.[' + TABLE_NAME + '] DROP CONSTRAINT [' + CONSTRAINT_NAME + ']')
-    FROM INFORMATION_SCHEMA.TABLE_CONSTRAINTS
-    WHERE CONSTRAINT_TYPE = 'FOREIGN KEY'
-    EXEC(@sql)
-    PRINT @sql
+Exec sp_executesql @Sql
+FETCH NEXT FROM @Cursor INTO @Sql
 END
 
-WHILE(EXISTS(SELECT * from INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME != '__MigrationHistory' AND TABLE_NAME != 'database_firewall_rules' AND TABLE_TYPE != 'VIEW'))
-BEGIN
-    SELECT TOP 1 @sql=('DROP TABLE ' + TABLE_SCHEMA + '.[' + TABLE_NAME + ']')
-    FROM INFORMATION_SCHEMA.TABLES
-    WHERE TABLE_NAME != '__MigrationHistory' AND TABLE_NAME != 'database_firewall_rules'
-    EXEC(@sql)
-    PRINT @sql
-END
+CLOSE @Cursor DEALLOCATE @Cursor
+
+EXEC sp_MSforeachtable 'DROP TABLE ?'
+
     """  # noqa: E501
 
     curs = conn.cursor()
@@ -104,6 +105,8 @@ def _generate_demo_tables(conn):
             row.IP_DESCRIPTION,
             row.IP_ENG_UNITS,
         )
+
+    curs.commit()
 
 
 @pytest.fixture
