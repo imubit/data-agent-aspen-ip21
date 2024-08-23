@@ -22,17 +22,47 @@ def test_sanity():
 
 
 def test_list_tags(target_conn):
-    tags = target_conn.list_tags()
 
+    tags = target_conn.list_tags()
+    assert tags == {
+        "fc001.pv": {"NAME": "fc001.pv", "HasChildren": False},
+        "tc001.pv": {"NAME": "tc001.pv", "HasChildren": False},
+    }
+
+    tags = target_conn.list_tags(filter=["fc001.pv", "tc001.pv"])
+    assert tags == {
+        "fc001.pv": {"NAME": "fc001.pv", "HasChildren": False},
+        "tc001.pv": {"NAME": "tc001.pv", "HasChildren": False},
+    }
+
+    tags = target_conn.list_tags(filter=["IP_AIDef:fc001.pv", "tc001*"])
     assert tags == {
         "fc001.pv": {"NAME": "fc001.pv", "HasChildren": False},
         "tc001.pv": {"NAME": "tc001.pv", "HasChildren": False},
     }
 
     tags = target_conn.list_tags(
+        filter=["IP_AIDef:fc001.pv", "IP_DIDef:*"],
+        include_attributes=["IP_DESCRIPTION", "Description", "EngUnits"],
+    )
+    assert tags == {
+        "fc001.pv": {
+            "IP_DESCRIPTION": "Flow Controller",
+            "HasChildren": False,
+            "Description": "Flow Controller",
+            "EngUnits": "",
+        },
+        "sp001.pv": {
+            "IP_DESCRIPTION": "Valve",
+            "HasChildren": False,
+            "Description": "Valve",
+            "EngUnits": "",
+        },
+    }
+
+    tags = target_conn.list_tags(
         include_attributes=["IP_DESCRIPTION", "Description", "EngUnits"]
     )
-
     assert tags == {
         "fc001.pv": {
             "IP_DESCRIPTION": "Flow Controller",

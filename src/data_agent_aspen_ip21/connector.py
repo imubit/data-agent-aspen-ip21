@@ -216,63 +216,70 @@ class AspenIp21Connector(AbstractConnector):
             if "NAME" not in attr_to_retrieve:
                 attr_to_retrieve.append("NAME")
 
-        filter = filter.replace("*", "%")
-        fltr = filter.split(self.GROUP_TAG_DELIMITER, 1)
+        filters = [filter] if isinstance(filter, str) else filter
 
-        table_name = self._default_group if len(fltr) == 1 else fltr[0]
-        tag_filter = filter if len(fltr) == 1 else fltr[1]
+        groups_map = self._tag_list_to_group_map(filters)
 
-        tbl = Table(table_name)
+        result = {}
 
-        q = (
-            MSSQLQuery.from_(tbl)
-            .orderby(tbl.NAME, order=Order.asc)
-            .where(tbl.NAME.like(f"{tag_filter}%"))
-        )
+        for grp in groups_map:
 
-        if not include_attributes:
-            q = q.select(tbl.NAME)
-        elif attr_list_provided:
+            tbl = Table(grp)
 
-            for attr in attr_to_retrieve:
-                q = q.select(attr)
-        else:
-            q = q.select("*")
+            q = (
+                MSSQLQuery.from_(tbl)
+                .orderby(tbl.NAME, order=Order.asc)
+                .where(
+                    reduce(or_, [tbl.NAME.like(f"{tag}%") for tag in groups_map[grp]])
+                )
+            )
 
-        if self._sql_server_mode:
-            q = q.distinct()
+            if not include_attributes:
+                q = q.select(tbl.NAME)
+            elif attr_list_provided:
 
-        self._conn.autocommit = False
-        curs = self._conn.cursor()
+                for attr in attr_to_retrieve:
+                    q = q.select(attr)
+            else:
+                q = q.select("*")
 
-        # if max_results > 0:
-        #
-        #     if self._sql_server_mode:
-        #         # q = q.top(max_results)
-        #         # curs.execute(str(q))
-        #         # sql = f"SELECT 1; {str(q)};"
-        #         sql = str(q)
-        #     else:
-        #         # curs.execute(f"SET MAX_ROWS {max_results};")
-        #         # sql = f"SET MAX_ROWS {max_results}; {str(q)};"
-        #         sql = str(q)
-        #         # sql = f"DECLARE @CursorVar CURSOR; {sql};"
-        #         # sql = f'exec(" SET MAX_ROWS {max_results}; {sql};  ")'
-        #         # print(sql)
-        #         # curs.execute('exec("@string1=?")', (sql))
-        #
-        #     curs.execute(sql)
-        #     # curs.nextset()
-        # else:
-        curs.execute(str(q))
+            if self._sql_server_mode:
+                q = q.distinct()
 
-        columns = [column[0] for column in curs.description]
+            self._conn.autocommit = False
+            curs = self._conn.cursor()
 
-        rows = curs.fetchmany(max_results) if max_results > 0 else curs.fetchall()
+            # if max_results > 0:
+            #
+            #     if self._sql_server_mode:
+            #         # q = q.top(max_results)
+            #         # curs.execute(str(q))
+            #         # sql = f"SELECT 1; {str(q)};"
+            #         sql = str(q)
+            #     else:
+            #         # curs.execute(f"SET MAX_ROWS {max_results};")
+            #         # sql = f"SET MAX_ROWS {max_results}; {str(q)};"
+            #         sql = str(q)
+            #         # sql = f"DECLARE @CursorVar CURSOR; {sql};"
+            #         # sql = f'exec(" SET MAX_ROWS {max_results}; {sql};  ")'
+            #         # print(sql)
+            #         # curs.execute('exec("@string1=?")', (sql))
+            #
+            #     curs.execute(sql)
+            #     # curs.nextset()
+            # else:
+            curs.execute(str(q))
 
-        result = {
-            row.NAME: dict(zip(columns, row), **{"HasChildren": False}) for row in rows
-        }
+            columns = [column[0] for column in curs.description]
+
+            rows = curs.fetchmany(max_results) if max_results > 0 else curs.fetchall()
+
+            result.update(
+                {
+                    row.NAME: dict(zip(columns, row), **{"HasChildren": False})
+                    for row in rows
+                }
+            )
 
         if not include_attributes:
             return result
@@ -394,7 +401,7 @@ class AspenIp21Connector(AbstractConnector):
 
         group_map = {}
         for t in fqn_tags:
-            lst = t.split(self.GROUP_TAG_DELIMITER, 1)
+            lst = t.replace("*", "%").split(self.GROUP_TAG_DELIMITER, 1)
 
             table_name = self._default_group if len(lst) == 1 else lst[0]
             tag = t if len(lst) == 1 else lst[1]
