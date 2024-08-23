@@ -169,6 +169,7 @@ class AspenIp21Connector(AbstractConnector):
 
     def connect(self):
         self._conn = pyodbc.connect(self._conn_string, autocommit=False)
+        log.debug(f"Connected to {self._conn_string}")
 
     @property
     def odbc_conn(self):
@@ -215,6 +216,7 @@ class AspenIp21Connector(AbstractConnector):
             if "NAME" not in attr_to_retrieve:
                 attr_to_retrieve.append("NAME")
 
+        filter = filter.replace("*", "%")
         fltr = filter.split(self.GROUP_TAG_DELIMITER, 1)
 
         table_name = self._default_group if len(fltr) == 1 else fltr[0]
@@ -438,6 +440,8 @@ class AspenIp21Connector(AbstractConnector):
 
         if freq:
 
+            log.debug(f"Reading interpolated values (freq='{freq}')...")
+
             tbl = Table("HISTORY")
 
             q = MSSQLQuery().from_(tbl).select(tbl.NAME, tbl.TS, tbl.VALUE)
@@ -471,6 +475,9 @@ class AspenIp21Connector(AbstractConnector):
             # )
 
         else:
+
+            log.debug("Reading recorded values for ...")
+
             group_map = self._tag_list_to_group_map(tags)
 
             for grp in group_map:
@@ -523,6 +530,9 @@ class AspenIp21Connector(AbstractConnector):
         df = df.pivot(index="Timestamp", columns="Name", values="Value")
         df.index = pd.to_datetime(df.index)
         df.index.name = "timestamp"
+
+        for tag in tags:
+            df[tag] = df.get(tag, None)
 
         return df
 
