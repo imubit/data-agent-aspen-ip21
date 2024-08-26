@@ -169,7 +169,7 @@ class AspenIp21Connector(AbstractConnector):
 
     def connect(self):
         self._conn = pyodbc.connect(self._conn_string, autocommit=False)
-        log.debug(f"Connected to {self._conn_string}")
+        log.debug(f"Connection {self._name} established")
 
     @property
     def odbc_conn(self):
@@ -274,7 +274,9 @@ class AspenIp21Connector(AbstractConnector):
 
             result.update(
                 {
-                    row.NAME: dict(zip(columns, row), **{"HasChildren": False})
+                    f"{grp}{self.GROUP_TAG_DELIMITER}{row.NAME}": dict(
+                        zip(columns, row), **{"HasChildren": False}
+                    )
                     for row in rows
                 }
             )

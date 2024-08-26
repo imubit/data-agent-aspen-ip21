@@ -25,34 +25,36 @@ def test_list_tags(target_conn):
 
     tags = target_conn.list_tags()
     assert tags == {
-        "fc001.pv": {"NAME": "fc001.pv", "HasChildren": False},
-        "tc001.pv": {"NAME": "tc001.pv", "HasChildren": False},
+        "IP_AIDef:fc001.pv": {"NAME": "fc001.pv", "HasChildren": False},
+        "IP_AIDef:tc001.pv": {"NAME": "tc001.pv", "HasChildren": False},
     }
 
     tags = target_conn.list_tags(filter=["fc001.pv", "tc001.pv"])
     assert tags == {
-        "fc001.pv": {"NAME": "fc001.pv", "HasChildren": False},
-        "tc001.pv": {"NAME": "tc001.pv", "HasChildren": False},
+        "IP_AIDef:fc001.pv": {"NAME": "fc001.pv", "HasChildren": False},
+        "IP_AIDef:tc001.pv": {"NAME": "tc001.pv", "HasChildren": False},
     }
 
     tags = target_conn.list_tags(filter=["IP_AIDef:fc001.pv", "tc001*"])
     assert tags == {
-        "fc001.pv": {"NAME": "fc001.pv", "HasChildren": False},
-        "tc001.pv": {"NAME": "tc001.pv", "HasChildren": False},
+        "IP_AIDef:fc001.pv": {"NAME": "fc001.pv", "HasChildren": False},
+        "IP_AIDef:tc001.pv": {"NAME": "tc001.pv", "HasChildren": False},
     }
 
     tags = target_conn.list_tags(
         filter=["IP_AIDef:fc001.pv", "IP_DIDef:*"],
-        include_attributes=["IP_DESCRIPTION", "Description", "EngUnits"],
+        include_attributes=["Name", "IP_DESCRIPTION", "Description", "EngUnits"],
     )
     assert tags == {
-        "fc001.pv": {
+        "IP_AIDef:fc001.pv": {
+            "Name": "fc001.pv",
             "IP_DESCRIPTION": "Flow Controller",
             "HasChildren": False,
             "Description": "Flow Controller",
             "EngUnits": "",
         },
-        "sp001.pv": {
+        "IP_DIDef:sp001.pv": {
+            "Name": "sp001.pv",
             "IP_DESCRIPTION": "Valve",
             "HasChildren": False,
             "Description": "Valve",
@@ -64,13 +66,13 @@ def test_list_tags(target_conn):
         include_attributes=["IP_DESCRIPTION", "Description", "EngUnits"]
     )
     assert tags == {
-        "fc001.pv": {
+        "IP_AIDef:fc001.pv": {
             "IP_DESCRIPTION": "Flow Controller",
             "HasChildren": False,
             "Description": "Flow Controller",
             "EngUnits": "",
         },
-        "tc001.pv": {
+        "IP_AIDef:tc001.pv": {
             "IP_DESCRIPTION": "Temp Controller",
             "HasChildren": False,
             "Description": "Temp Controller",
@@ -82,13 +84,13 @@ def test_list_tags(target_conn):
         max_results=3, include_attributes=["IP_DESCRIPTION", "Description", "EngUnits"]
     )
     assert tags == {
-        "fc001.pv": {
+        "IP_AIDef:fc001.pv": {
             "IP_DESCRIPTION": "Flow Controller",
             "HasChildren": False,
             "Description": "Flow Controller",
             "EngUnits": "",
         },
-        "tc001.pv": {
+        "IP_AIDef:tc001.pv": {
             "IP_DESCRIPTION": "Temp Controller",
             "HasChildren": False,
             "Description": "Temp Controller",
