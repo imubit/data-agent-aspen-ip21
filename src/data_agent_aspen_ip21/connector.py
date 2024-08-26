@@ -43,7 +43,7 @@ class AspenIp21Connector(AbstractConnector):
         ("EngUnits", {"Type": "str", "Name": "Eng Units"}),
         ("Type", {"Type": "str", "Name": "Type"}),
         ("Description", {"Type": "str", "Name": "Description"}),
-        ("Path", {"Type": "str", "Name": "Path"}),
+        # ("Path", {"Type": "str", "Name": "Path"}),
     ]
 
     DEFAULT_ODBC_DRIVER_NAME = "AspenTech SQLplus"
@@ -169,6 +169,7 @@ class AspenIp21Connector(AbstractConnector):
 
     def connect(self):
         self._conn = pyodbc.connect(self._conn_string, autocommit=False)
+        log.debug(f"Connection {self._name} established")
 
     @property
     def odbc_conn(self):
@@ -215,62 +216,70 @@ class AspenIp21Connector(AbstractConnector):
             if "NAME" not in attr_to_retrieve:
                 attr_to_retrieve.append("NAME")
 
-        fltr = filter.split(self.GROUP_TAG_DELIMITER, 1)
+        filters = [filter] if isinstance(filter, str) else filter
 
-        table_name = self._default_group if len(fltr) == 1 else fltr[0]
-        tag_filter = filter if len(fltr) == 1 else fltr[1]
+        groups_map = self._tag_list_to_group_map(filters)
 
-        tbl = Table(table_name)
+        result = {}
+        for grp in groups_map:
 
-        q = (
-            MSSQLQuery.from_(tbl)
-            .orderby(tbl.NAME, order=Order.asc)
-            .where(tbl.NAME.like(f"{tag_filter}%"))
-        )
+            tbl = Table(grp)
 
-        if not include_attributes:
-            q = q.select(tbl.NAME)
-        elif attr_list_provided:
+            q = (
+                MSSQLQuery.from_(tbl)
+                .orderby(tbl.NAME, order=Order.asc)
+                .where(
+                    reduce(or_, [tbl.NAME.like(f"{tag}%") for tag in groups_map[grp]])
+                )
+            )
 
-            for attr in attr_to_retrieve:
-                q = q.select(attr)
-        else:
-            q = q.select("*")
+            if not include_attributes:
+                q = q.select(tbl.NAME)
+            elif attr_list_provided:
 
-        if self._sql_server_mode:
-            q = q.distinct()
+                for attr in attr_to_retrieve:
+                    q = q.select(attr)
+            else:
+                q = q.select("*")
 
-        self._conn.autocommit = False
-        curs = self._conn.cursor()
+            if self._sql_server_mode:
+                q = q.distinct()
 
-        # if max_results > 0:
-        #
-        #     if self._sql_server_mode:
-        #         # q = q.top(max_results)
-        #         # curs.execute(str(q))
-        #         # sql = f"SELECT 1; {str(q)};"
-        #         sql = str(q)
-        #     else:
-        #         # curs.execute(f"SET MAX_ROWS {max_results};")
-        #         # sql = f"SET MAX_ROWS {max_results}; {str(q)};"
-        #         sql = str(q)
-        #         # sql = f"DECLARE @CursorVar CURSOR; {sql};"
-        #         # sql = f'exec(" SET MAX_ROWS {max_results}; {sql};  ")'
-        #         # print(sql)
-        #         # curs.execute('exec("@string1=?")', (sql))
-        #
-        #     curs.execute(sql)
-        #     # curs.nextset()
-        # else:
-        curs.execute(str(q))
+            self._conn.autocommit = False
+            curs = self._conn.cursor()
 
-        columns = [column[0] for column in curs.description]
+            # if max_results > 0:
+            #
+            #     if self._sql_server_mode:
+            #         # q = q.top(max_results)
+            #         # curs.execute(str(q))
+            #         # sql = f"SELECT 1; {str(q)};"
+            #         sql = str(q)
+            #     else:
+            #         # curs.execute(f"SET MAX_ROWS {max_results};")
+            #         # sql = f"SET MAX_ROWS {max_results}; {str(q)};"
+            #         sql = str(q)
+            #         # sql = f"DECLARE @CursorVar CURSOR; {sql};"
+            #         # sql = f'exec(" SET MAX_ROWS {max_results}; {sql};  ")'
+            #         # print(sql)
+            #         # curs.execute('exec("@string1=?")', (sql))
+            #
+            #     curs.execute(sql)
+            #     # curs.nextset()
+            # else:
+            curs.execute(str(q))
 
-        rows = curs.fetchmany(max_results) if max_results > 0 else curs.fetchall()
+            columns = [column[0] for column in curs.description]
+            rows = curs.fetchmany(max_results) if max_results > 0 else curs.fetchall()
 
-        result = {
-            row.NAME: dict(zip(columns, row), **{"HasChildren": False}) for row in rows
-        }
+            result.update(
+                {
+                    f"{grp}{self.GROUP_TAG_DELIMITER}{row.NAME}": dict(
+                        zip(columns, row), **{"HasChildren": False}
+                    )
+                    for row in rows
+                }
+            )
 
         if not include_attributes:
             return result
@@ -392,7 +401,7 @@ class AspenIp21Connector(AbstractConnector):
 
         group_map = {}
         for t in fqn_tags:
-            lst = t.split(self.GROUP_TAG_DELIMITER, 1)
+            lst = t.replace("*", "%").split(self.GROUP_TAG_DELIMITER, 1)
 
             table_name = self._default_group if len(lst) == 1 else lst[0]
             tag = t if len(lst) == 1 else lst[1]
@@ -436,7 +445,11 @@ class AspenIp21Connector(AbstractConnector):
             else time_frequency
         )
 
+        curs = self._conn.cursor()
+
         if freq:
+
+            log.debug(f"Reading interpolated values (freq='{freq}')...")
 
             tbl = Table("HISTORY")
 
@@ -470,8 +483,26 @@ class AspenIp21Connector(AbstractConnector):
             #     % (tag, start, end)
             # )
 
+            sql = str(q)
+
+            # IP21 does not support standard SQL TOP operator
+            if max_results > 0 and not self._sql_server_mode:
+                sql = f"SET MAX_ROWS {max_results}; {str(q)};"
+
+            curs.execute(sql)
+
+            if max_results > 0 and not self._sql_server_mode:
+                curs.nextset()
+
+            data = curs.fetchall()
+
         else:
+
+            log.debug("Reading recorded values for ...")
+
             group_map = self._tag_list_to_group_map(tags)
+
+            data = []
 
             for grp in group_map:
 
@@ -499,20 +530,18 @@ class AspenIp21Connector(AbstractConnector):
                 if max_results > 0 and self._sql_server_mode:
                     q = q.top(max_results)
 
-        curs = self._conn.cursor()
+                sql = str(q)
 
-        sql = str(q)
+                # IP21 does not support standard SQL TOP operator
+                if max_results > 0 and not self._sql_server_mode:
+                    sql = f"SET MAX_ROWS {max_results}; {str(q)};"
 
-        # IP21 does not support standard SQL TOP operator
-        if max_results > 0 and not self._sql_server_mode:
-            sql = f"SET MAX_ROWS {max_results}; {str(q)};"
+                curs.execute(sql)
 
-        curs.execute(sql)
+                if max_results > 0 and not self._sql_server_mode:
+                    curs.nextset()
 
-        if max_results > 0 and not self._sql_server_mode:
-            curs.nextset()
-
-        data = curs.fetchall()
+                data.extend(curs.fetchall())
 
         df = pd.DataFrame.from_records(
             data,
@@ -523,6 +552,15 @@ class AspenIp21Connector(AbstractConnector):
         df = df.pivot(index="Timestamp", columns="Name", values="Value")
         df.index = pd.to_datetime(df.index)
         df.index.name = "timestamp"
+
+        for tag in tags:
+            short_name = (
+                tag.split(self.GROUP_TAG_DELIMITER)[1]
+                if self.GROUP_TAG_DELIMITER in tag
+                else tag
+            )
+
+            df[short_name] = df.get(short_name, None)
 
         return df
 
