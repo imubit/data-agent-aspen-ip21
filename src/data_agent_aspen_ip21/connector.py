@@ -220,6 +220,11 @@ class AspenIp21Connector(AbstractConnector):
 
         groups_map = self._tag_list_to_group_map(filters)
 
+        if any(not str(group).strip() for group in groups_map.keys()):
+            raise Exception(
+                "Group is not provided and default group is not defined in configuration."
+            )
+
         result = {}
         for grp in groups_map:
 
