@@ -144,6 +144,39 @@ def _generate_demo_tables(conn):
 
     curs.commit()
 
+    df = create_random_df(
+        ["IP_TREND_VALUE"], rows=100, index_name="IP_TREND_TIME", val_type=np.int64
+    )
+    df["NAME"] = "sp002_duplicate.pv"
+    df["IP_DESCRIPTION"] = "Valve"
+    df["IP_ENG_UNITS"] = ""
+    df["IP_#_OF_TREND_VALUES"] = 100
+
+    for index, row in df.iterrows():
+        curs.execute(
+            f"INSERT INTO {table_name} "
+            f"(NAME,IP_TREND_TIME,IP_TREND_VALUE,IP_DESCRIPTION,IP_ENG_UNITS) values(?,?,?,?,?)",
+            row.NAME,
+            index,
+            row.IP_TREND_VALUE,
+            row.IP_DESCRIPTION,
+            row.IP_ENG_UNITS,
+        )
+
+        # Insert duplicate
+        if str(index) == "2016-01-01 00:00:03":
+            curs.execute(
+                f"INSERT INTO {table_name} "
+                f"(NAME,IP_TREND_TIME,IP_TREND_VALUE,IP_DESCRIPTION,IP_ENG_UNITS) values(?,?,?,?,?)",
+                row.NAME,
+                index,
+                71,
+                row.IP_DESCRIPTION,
+                row.IP_ENG_UNITS,
+            )
+
+    curs.commit()
+
 
 @pytest.fixture
 def target_conn():
