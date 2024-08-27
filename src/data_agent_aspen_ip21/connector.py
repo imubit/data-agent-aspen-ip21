@@ -549,6 +549,7 @@ class AspenIp21Connector(AbstractConnector):
                 MAP_IP21ATTRIBUTE_2_STANDARD[column[0]] for column in curs.description
             ],
         )
+        df.drop_duplicates(subset=["Timestamp"], keep="last", inplace=True)
         df = df.pivot(index="Timestamp", columns="Name", values="Value")
         df.index = pd.to_datetime(df.index)
         df.index.name = "timestamp"

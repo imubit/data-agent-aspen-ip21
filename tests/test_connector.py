@@ -47,16 +47,23 @@ def test_list_tags(target_conn):
     )
     assert tags == {
         "IP_AIDef:fc001.pv": {
-            "Name": "fc001.pv",
             "IP_DESCRIPTION": "Flow Controller",
             "HasChildren": False,
+            "Name": "fc001.pv",
             "Description": "Flow Controller",
             "EngUnits": "",
         },
         "IP_DIDef:sp001.pv": {
-            "Name": "sp001.pv",
             "IP_DESCRIPTION": "Valve",
             "HasChildren": False,
+            "Name": "sp001.pv",
+            "Description": "Valve",
+            "EngUnits": "",
+        },
+        "IP_DIDef:sp002_duplicate.pv": {
+            "IP_DESCRIPTION": "Valve",
+            "HasChildren": False,
+            "Name": "sp002_duplicate.pv",
             "Description": "Valve",
             "EngUnits": "",
         },
@@ -133,6 +140,12 @@ def test_read_tag_values_period(target_conn):
         ["IP_AIDef:fc001.pv", "IP_DIDef:sp001.pv"], last_timestamp="20160101 00:01"
     )
     assert df.index[-1] == pd.Timestamp("20160101 00:01")
+
+    df = target_conn.read_tag_values_period(
+        ["IP_DIDef:sp002_duplicate.pv"], last_timestamp="20160101 00:01"
+    )
+    assert df.index[-1] == pd.Timestamp("20160101 00:01")
+    assert df.iloc[3]["sp002_duplicate.pv"] == 71
 
 
 def test_read_tag_attributes(target_conn):
