@@ -520,6 +520,7 @@ class AspenIp21Connector(AbstractConnector):
                     MSSQLQuery()
                     .from_(tbl)
                     .select(tbl.NAME, tbl.IP_TREND_TIME, tbl.IP_TREND_VALUE)
+                    .orderby(tbl.IP_TREND_TIME, order=Order.asc)
                 )
 
                 if first_timestamp:
