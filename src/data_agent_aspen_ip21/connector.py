@@ -272,6 +272,7 @@ class AspenIp21Connector(AbstractConnector):
             #     curs.execute(sql)
             #     # curs.nextset()
             # else:
+            log.debug(f"sql_exec: {str(q)}")
             curs.execute(str(q))
 
             columns = [column[0] for column in curs.description]
@@ -349,6 +350,7 @@ class AspenIp21Connector(AbstractConnector):
             self._conn.autocommit = False
             curs = self._conn.cursor()
 
+            log.debug(f"sql_exec: {str(q)}")
             curs.execute(str(q))
 
             columns = [column[0] for column in curs.description]
@@ -494,6 +496,7 @@ class AspenIp21Connector(AbstractConnector):
             if max_results > 0 and not self._sql_server_mode:
                 sql = f"SET MAX_ROWS {max_results}; {str(q)};"
 
+            log.debug(f"sql_exec: {sql}")
             curs.execute(sql)
 
             if max_results > 0 and not self._sql_server_mode:
@@ -542,6 +545,7 @@ class AspenIp21Connector(AbstractConnector):
                 if max_results > 0 and not self._sql_server_mode:
                     sql = f"SET MAX_ROWS {max_results}; {str(q)};"
 
+                log.debug(f"sql_exec: {sql}")
                 curs.execute(sql)
 
                 if max_results > 0 and not self._sql_server_mode:
