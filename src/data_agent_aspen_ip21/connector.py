@@ -49,6 +49,7 @@ class AspenIp21Connector(AbstractConnector):
     DEFAULT_ODBC_DRIVER_NAME = "AspenTech SQLplus"
     DEFAULT_SERVER_PORT = 10014
     DEFAULT_TIMEOUT = 128
+    DEFAULT_MAX_ROWS = "5000000"
 
     GROUP_TAG_DELIMITER = ":"
 
@@ -85,7 +86,7 @@ class AspenIp21Connector(AbstractConnector):
                 #     "ODBC Driver 18 for SQL Server"
                 # ],
                 "values": pyodbc.drivers(),
-                "default_value": "AspenTech ODBC driver for Production Record Manager",
+                "default_value": "AspenTech SQLplus",
                 "optional": False,
             },
             "connection_string": {
@@ -99,6 +100,13 @@ class AspenIp21Connector(AbstractConnector):
                 "type": "str",
                 "default_value": "",
                 "optional": True,
+            },
+            "odbc_maxrows": {
+                "name": "ODBC Max Rows",
+                "type": "list",
+                "values": ["10000000", "5000000", "1000000", "100000"],
+                "default_value": AspenIp21Connector.DEFAULT_MAX_ROWS,
+                "optional": False,
             },
         }
 
@@ -145,16 +153,19 @@ class AspenIp21Connector(AbstractConnector):
         self._server_host = server_host
         self._server_port = server_port or self.DEFAULT_SERVER_PORT
         self._server_timeout = server_timeout or self.DEFAULT_TIMEOUT
-
         self._default_group = kwargs.get("default_group")
-
+        self._odbc_maxrows = (
+            int(kwargs["odbc_maxrows"])
+            if "odbc_maxrows" in kwargs
+            else AspenIp21Connector.DEFAULT_MAX_ROWS
+        )
         self._conn_string = (
             connection_string
             or f"DRIVER={self.DEFAULT_ODBC_DRIVER_NAME};"
             f"HOST={self._server_host};"
             f"PORT={self._server_port};"
             f"TIMEOUT={self._server_timeout};"
-            f"MAX_ROWS=10"
+            f"MAXROWS={self._odbc_maxrows}"
         )
 
         self._conn = None
