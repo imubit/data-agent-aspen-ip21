@@ -23,11 +23,21 @@ MAP_IP21ATTRIBUTE_2_STANDARD = {
     "IP_DCS_NAME": "Path",
     "IP_TREND_TIME": "Timestamp",
     "IP_TREND_VALUE": "Value",
+    "TS": "Timestamp",
+    "VALUE": "Value",
 }
 
 MAP_STANDARD_ATTR_TO_IP21 = {v: k for k, v in MAP_IP21ATTRIBUTE_2_STANDARD.items()}
 
-MAP_TIME_FREQUENCY_TO_IP21 = {"raw data": None}
+MAP_TIME_FREQUENCY_TO_IP21 = {
+    "raw data": None,
+    "1 minute": "00:01:00",
+    "3 minutes": "00:03:00",
+    "5 minutes": "00:03:00",
+    "10 minutes": "00:10:00",
+    "1 hour": "01:00:00",
+    "1 day": "24:00:00",
+}
 
 
 class AspenIp21Connector(AbstractConnector):
@@ -490,6 +500,7 @@ class AspenIp21Connector(AbstractConnector):
             ]
 
             q = q.where(reduce(or_, [tbl.NAME.like(f"{tag}%") for tag in tag_names]))
+            q = q.where(tbl.PERIOD == freq)
             q = q.where(tbl.REQUEST == 2)
 
             # sql = (
@@ -501,7 +512,11 @@ class AspenIp21Connector(AbstractConnector):
             #     % (tag, start, end)
             # )
 
-            sql = str(q)
+            # sql = str(q)
+            sql = q.get_sql()
+
+            # IP21 is not recognizing paretheses around HISTORY table
+            sql = sql.replace('"HISTORY"', "HISTORY")
 
             # IP21 does not support standard SQL TOP operator
             if max_results > 0 and not self._sql_server_mode:
@@ -574,6 +589,7 @@ class AspenIp21Connector(AbstractConnector):
         df = df.pivot(index="Timestamp", columns="Name", values="Value")
         df.index = pd.to_datetime(df.index)
         df.index.name = "timestamp"
+        df.sort_index(inplace=True)
 
         for tag in tags:
             short_name = (
