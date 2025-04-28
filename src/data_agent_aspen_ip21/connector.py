@@ -301,8 +301,9 @@ class AspenIp21Connector(AbstractConnector):
 
             result.update(
                 {
-                    # f"{grp}{self.GROUP_TAG_DELIMITER}{row.NAME}": dict(
-                    f"{row.NAME}": dict(zip(columns, row), **{"HasChildren": False})
+                    f"{grp}{self.GROUP_TAG_DELIMITER}{row.NAME}": dict(
+                        zip(columns, row), **{"HasChildren": False}
+                    )
                     for row in rows
                 }
             )
